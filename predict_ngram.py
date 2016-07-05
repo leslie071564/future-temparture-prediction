@@ -8,10 +8,10 @@ imp = Imputer(strategy='mean', axis=0)
 from sklearn.linear_model import Ridge, RidgeCV
 from sklearn.metrics import mean_squared_error
 from numpy import concatenate
-TrainFiles = {'T':"./Temperature_Train_Feature.tsv", 'S':"./SunDuration_Train_Feature.tsv", 'P':"./Precipitation_Train_Feature.tsv"}
-TestFiles = {'T':"./Temperature_Test_Feature.tsv", 'S':"./SunDuration_Test_Feature.tsv", 'P':"./Precipitation_Test_Feature.tsv"}
-TrainTarget = "./Temperature_Train_Target.dat.tsv"
-Location = "./Location.tsv"
+TrainFiles = {'T':"./data/Temperature_Train_Feature.tsv", 'S':"./data/SunDuration_Train_Feature.tsv", 'P':"./data/Precipitation_Train_Feature.tsv"}
+TestFiles = {'T':"./data/Temperature_Test_Feature.tsv", 'S':"./data/SunDuration_Test_Feature.tsv", 'P':"./data/Precipitation_Test_Feature.tsv"}
+TrainTarget = "./data/Temperature_Train_Target.dat.tsv"
+Location = "./data/Location.tsv"
 
 def getCrossYear(Temp_file):
     Year = Temp_file.loc[:, ['year']].values
@@ -30,7 +30,7 @@ def n_gram(n, m, M, crossYearPt):
         M_prev = np.vstack([np.zeros(M.shape[1]), M_prev])[:-1,:] 
         M_ngram = concatenate((M_ngram, M_prev), axis=1)
     M_post = M
-    for i in range(n-1):
+    for i in range(m-1):
         M_post = np.vstack([M_post, np.zeros(M.shape[1])])[1:,:]
         M_ngram = concatenate((M_ngram, M_post), axis=1)
     
@@ -89,6 +89,7 @@ def validate(N, N2, get_model=False):
         reg_submit = RidgeCV()
         reg_submit.fit(X_Ngram, y)
         return reg_submit
+    return mean_squared_error(y_val, y_val_pred)
 
 def predict(N, N2, model):
     temp_test_feature = pd.read_csv(TestFiles['T'], sep='\t')
@@ -113,16 +114,22 @@ def predict(N, N2, model):
     imp.fit(X_test_Ngram)
     X_test_Ngram = imp.transform(X_test_Ngram)
     y_test_pred = model.predict(X_test_Ngram)
-    SUBMIT_PATH = 'submission_3-2gram.dat'
+    SUBMIT_PATH = 'submission/submission_3-8gram.dat'
     np.savetxt(SUBMIT_PATH, y_test_pred, fmt='%.10f')
 
 
 if __name__ == "__main__":
     '''
+    MIN = 1
+    WHICH = None
     for i in range(2, 12):
         for j in range(2, 12):
             print "%s,%s-gram" % (i, j)
-            validate(i,j)
+            mse = validate(i,j)
+            if mse < MIN:
+                MIN = mse
+                WHICH = (i,j)
+    print "the best is %s (mse:%f)" % (WHICH, MIN)
     '''
-    model3_2 = validate(3, 2, get_model=True)
-    predict(3, 2, model3_2)
+    model3_8 = validate(3, 8, get_model=True)
+    predict(3, 8, model3_8)
