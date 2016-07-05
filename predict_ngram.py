@@ -78,32 +78,33 @@ def auxiliary(M, which=0):
     temp = np.asarray(temp)
     return temp.reshape((1800, 1))
 
-def validate(N, N2, get_model=False):
-    temp_train_feature = pd.read_csv(TrainFiles['T'], sep='\t')
-    sun_train_feature = pd.read_csv(TrainFiles['S'], sep='\t')
-    prec_train_feature = pd.read_csv(TrainFiles['P'], sep='\t')
+def getFeature(nPrev, nAfter, aux_temp, aux_sun, aux_prec, files):
+    temp_feature = pd.read_csv(files['T'], sep='\t')
+    sun_feature = pd.read_csv(files['S'], sep='\t')
+    prec_feature = pd.read_csv(files['P'], sep='\t')
     location = pd.read_csv(Location, sep='\t', header=None)
-    X_t = temp_train_feature.loc[:, ['place%d' % i for i in range(11)]].values
-    X_s = sun_train_feature.loc[:, ['place%d' % i for i in range(11)]].values
-    X_p = prec_train_feature.loc[:, ['place%d' % i for i in range(11)]].values
-    X_aux = temp_train_feature.loc[:, ['targetplaceid', 'hour', 'day']].values
-    
-    X_which = auxiliary(X_t)
-    X_which1 = auxiliary(X_s)
-    X_which2 = auxiliary(X_p)
+
+    X_t = temp_feature.loc[:, ['place%d' % i for i in range(11)]].values
+    X_s = sun_feature.loc[:, ['place%d' % i for i in range(11)]].values
+    X_p = prec_feature.loc[:, ['place%d' % i for i in range(11)]].values
+    X_aux = temp_feature.loc[:, ['targetplaceid', 'hour', 'day']].values
+    X_which = concatenate((auxiliary(X_t), auxiliary(X_s), auxiliary(X_p)), axis=1)
 
     l = location.loc[1:, 1:].values
     l_1800 = np.tile(l, (164, 1))[:-4,:]
-    X_all = concatenate((X_t, X_aux, X_which, X_which1, X_which2, l_1800),axis=1)
+    X_basic = concatenate((X_t, X_aux, X_which, l_1800),axis=1)
 
-    X_Ngram = n_gram(N, N2, X_all)
+    #X_Ngram = n_gram(nPrev,nAfter, X_basic, crossYearPt=getCrossYear(temp_train_feature))
+    X_Ngram = n_gram(nPrev, nAfter, X_basic)
     
-    X_Final = X_Ngram 
-    #X_Final = concatenate((X_Ngram, auxiliary(X_t, -1), auxiliary(X_t, -2), auxiliary(X_t, 1), auxiliary(X_t, 2), auxiliary(X_s, -3)), axis=1)
-    #tempAve = n_average(2, X_t)
-    #X_Ngram = concatenate((X_Ngram, n_average(3, X_t)), axis=1)
+    X_tempAux = concatenate(map(lambda i:auxiliary(X_t, i), aux_temp), axis=1)
+    X_sunAux = concatenate(map(lambda i:auxiliary(X_s, i), aux_sun), axis=1)
+    X_precAux = concatenate(map(lambda i:auxiliary(X_p, i), aux_prec), axis=1)
+    X_Final = concatenate((X_Ngram, X_tempAux, X_sunAux, X_precAux), axis=1)
+    return X_Final
 
-
+def validate(nPrev, nAfter, aux_temp, aux_sun, aux_prec, get_model=False):
+    X_Final = getFeature(nPrev, nAfter, aux_temp, aux_sun, aux_prec, TrainFiles)
     data_train_target = pd.read_csv(TrainTarget, sep='\t', header=None)
     y = data_train_target.loc[:,0].values
 
@@ -122,39 +123,21 @@ def validate(N, N2, get_model=False):
     print mean_squared_error(y_val, y_val_pred)
     
     if get_model:
-        imp.fit(X_Ngram)
-        X_Ngram = imp.transform(X_Ngram)
+        imp.fit(X_Final)
+        X_Final = imp.transform(X_Final)
         reg_submit = RidgeCV()
-        reg_submit.fit(X_Ngram, y)
+        reg_submit.fit(X_Final, y)
         return reg_submit
     return mean_squared_error(y_val, y_val_pred)
 
-def predict(N, N2, model):
-    temp_test_feature = pd.read_csv(TestFiles['T'], sep='\t')
-    sun_test_feature = pd.read_csv(TestFiles['S'], sep='\t')
-    prec_test_feature = pd.read_csv(TestFiles['P'], sep='\t')
-    location = pd.read_csv(Location, sep='\t', header=None)
-    Xt_t = temp_test_feature.loc[:, ['place%d' % i for i in range(11)]].values
-    Xt_s = sun_test_feature.loc[:, ['place%d' % i for i in range(11)]].values
-    Xt_p = prec_test_feature.loc[:, ['place%d' % i for i in range(11)]].values
-    X_aux = temp_test_feature.loc[:, ['targetplaceid', 'hour', 'day']].values
-    
-    X_which = auxiliary(Xt_t)
-    X_which1 = auxiliary(Xt_s)
-    X_which2 = auxiliary(Xt_p)
+def predict(nPrev, nAfter, aux_temp, aux_sun, aux_prec, model):
+    X_Final = getFeature(nPrev, nAfter, aux_temp, aux_sun, aux_prec, TestFiles)
+    imp.fit(X_Final)
+    X_Final = imp.transform(X_Final)
 
-    l = location.loc[1:, 1:].values
-    l_1800 = np.tile(l, (164, 1))[:-4,:]
-    X_test = concatenate((Xt_t, Xt_s, Xt_p, X_aux, X_which, X_which1, X_which2, l_1800),axis=1)
-    #X_test = concatenate((Xt_t,Xt_s,Xt_p,l_1800),axis=1)
-    X_test_Ngram = n_gram(N, N2, X_test, getCrossYear(temp_test_feature))
-
-    imp.fit(X_test_Ngram)
-    X_test_Ngram = imp.transform(X_test_Ngram)
-    y_test_pred = model.predict(X_test_Ngram)
-    SUBMIT_PATH = 'submission/submission_3-8gram.dat'
+    y_test_pred = model.predict(X_Final)
+    SUBMIT_PATH = 'submission/submission_0705_3.dat'
     np.savetxt(SUBMIT_PATH, y_test_pred, fmt='%.10f')
-
 
 if __name__ == "__main__":
     '''
@@ -169,5 +152,5 @@ if __name__ == "__main__":
                 WHICH = (i,j)
     sys.stderr.write("the best is %s (mse:%f)\n" % (WHICH, MIN))
     '''
-    model3_8 = validate(10, 3, get_model=True)
-    #predict(3, 8, model3_8)
+    model10_3 = validate(10, 3, [-2, -1, 1, 2], [-1], [-1, -2], get_model=True)
+    predict(10, 3, [-2, -1, 1, 2], [-1], [-1, -2], model10_3)
