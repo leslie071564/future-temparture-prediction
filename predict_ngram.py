@@ -26,15 +26,32 @@ def getCrossYear(Temp_file):
 def n_gram(n, m, M, crossYearPt):
     M_prev = M 
     M_ngram = M
+    # get dummy.
+    imp.fit(M)
+    M = imp.transform(M)
+    dummy = np.mean(M, axis=0)
+    # get dummy.
     for i in range(n-1):
-        M_prev = np.vstack([np.zeros(M.shape[1]), M_prev])[:-1,:] 
+        #M_prev = np.vstack([np.zeros(M.shape[1]), M_prev])[:-1,:] 
+        M_prev = np.vstack([dummy, M_prev])[:-1,:] 
         M_ngram = concatenate((M_ngram, M_prev), axis=1)
     M_post = M
     for i in range(m-1):
-        M_post = np.vstack([M_post, np.zeros(M.shape[1])])[1:,:]
+        #M_post = np.vstack([M_post, np.zeros(M.shape[1])])[1:,:]
+        M_post = np.vstack([M_post, dummy])[1:,:]
         M_ngram = concatenate((M_ngram, M_post), axis=1)
-    
     return M_ngram
+
+def n_average(n, M):
+    M_prev = M
+    M_post = M
+    M_window = M
+    for i in range(n-1):
+        M_prev = np.vstack([np.zeros(M.shape[1]), M_prev])[:-1,:] 
+        M_post = np.vstack([M_post, np.zeros(M.shape[1])])[1:,:]
+        M_window = concatenate((M_prev, M_window, M_post), axis=1)
+    windowMean = np.mean(M_window, axis=1)
+    return windowMean.reshape((1800, 1))
 
 def auxiliary(M):
     temp = []
@@ -62,16 +79,23 @@ def validate(N, N2, get_model=False):
 
     l = location.loc[1:, 1:].values
     l_1800 = np.tile(l, (164, 1))[:-4,:]
-    X_all = concatenate((X_t, X_s, X_p, X_aux, X_which, X_which1, X_which2, l_1800),axis=1)
+    #X_all = concatenate((X_t, X_s, X_p, X_aux, X_which, X_which1, X_which2, l_1800),axis=1)
+    X_all = concatenate((X_t, X_aux, X_which, X_which1, X_which2, l_1800),axis=1)
 
     X_Ngram = n_gram(N, N2, X_all, getCrossYear(temp_train_feature))
+
+    X_Final = X_Ngram 
+    #X_Final = concatenate((X_Ngram, l_1800), axis=1)
+    #tempAve = n_average(2, X_t)
+    #X_Ngram = concatenate((X_Ngram, n_average(3, X_t)), axis=1)
+
 
     data_train_target = pd.read_csv(TrainTarget, sep='\t', header=None)
     y = data_train_target.loc[:,0].values
 
     TEST_SIZE = 0.2
     RANDOM_STATE = 0
-    X_train, X_val, y_train, y_val = train_test_split(X_Ngram, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
+    X_train, X_val, y_train, y_val = train_test_split(X_Final, y, test_size=TEST_SIZE, random_state=RANDOM_STATE)
 
     imp.fit(X_train)
     X_train = imp.transform(X_train)
@@ -129,7 +153,7 @@ if __name__ == "__main__":
             if mse < MIN:
                 MIN = mse
                 WHICH = (i,j)
-    print "the best is %s (mse:%f)" % (WHICH, MIN)
+    sys.stderr.write("the best is %s (mse:%f)\n" % (WHICH, MIN))
     '''
-    model3_8 = validate(3, 8, get_model=True)
-    predict(3, 8, model3_8)
+    model3_8 = validate(10, 3, get_model=True)
+    #predict(3, 8, model3_8)
