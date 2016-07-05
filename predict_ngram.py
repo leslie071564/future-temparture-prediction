@@ -23,23 +23,31 @@ def getCrossYear(Temp_file):
             crossYearPt.append(i)
     return crossYearPt[1:]
 
-def n_gram(n, m, M, crossYearPt):
-    M_prev = M 
-    M_ngram = M
+def n_gram(n, m, M, crossYearPt=[], only=False):
     # get dummy.
     imp.fit(M)
     M = imp.transform(M)
     dummy = np.mean(M, axis=0)
     # get dummy.
+    M_prev = M 
+    M_ngram = M
     for i in range(n-1):
-        #M_prev = np.vstack([np.zeros(M.shape[1]), M_prev])[:-1,:] 
         M_prev = np.vstack([dummy, M_prev])[:-1,:] 
+        for y in crossYearPt:
+            M_prev[y] = dummy
         M_ngram = concatenate((M_ngram, M_prev), axis=1)
+    if only and n != 0:
+        return M_prev
+    
     M_post = M
     for i in range(m-1):
-        #M_post = np.vstack([M_post, np.zeros(M.shape[1])])[1:,:]
         M_post = np.vstack([M_post, dummy])[1:,:]
+        for y in crossYearPt:
+            M_post[y] = dummy
         M_ngram = concatenate((M_ngram, M_post), axis=1)
+    if only and m != 0:
+        return M_post
+
     return M_ngram
 
 def n_average(n, M):
@@ -53,11 +61,18 @@ def n_average(n, M):
     windowMean = np.mean(M_window, axis=1)
     return windowMean.reshape((1800, 1))
 
-def auxiliary(M):
+def auxiliary(M, which=0):
+    # get target matrix.
+    if which > 0:
+        targetM = n_gram(0, which, M, only=True)
+    elif which < 0:
+        targetM = n_gram(which*(-1), 0,M, only=True)
+    else:
+        targetM = M
     temp = []
     for i in range(1800):
         which = i % 11         
-        nowRow = M[i,:]
+        nowRow = targetM[i,:]
         nowElement = nowRow[which]
         temp.append(nowElement)
     temp = np.asarray(temp)
@@ -79,13 +94,12 @@ def validate(N, N2, get_model=False):
 
     l = location.loc[1:, 1:].values
     l_1800 = np.tile(l, (164, 1))[:-4,:]
-    #X_all = concatenate((X_t, X_s, X_p, X_aux, X_which, X_which1, X_which2, l_1800),axis=1)
     X_all = concatenate((X_t, X_aux, X_which, X_which1, X_which2, l_1800),axis=1)
 
-    X_Ngram = n_gram(N, N2, X_all, getCrossYear(temp_train_feature))
-
+    X_Ngram = n_gram(N, N2, X_all)
+    
     X_Final = X_Ngram 
-    #X_Final = concatenate((X_Ngram, l_1800), axis=1)
+    #X_Final = concatenate((X_Ngram, auxiliary(X_t, -1), auxiliary(X_t, -2), auxiliary(X_t, 1), auxiliary(X_t, 2), auxiliary(X_s, -3)), axis=1)
     #tempAve = n_average(2, X_t)
     #X_Ngram = concatenate((X_Ngram, n_average(3, X_t)), axis=1)
 
