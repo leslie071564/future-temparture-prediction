@@ -5,7 +5,7 @@ import numpy as np
 from sklearn.cross_validation import train_test_split
 from sklearn.preprocessing import Imputer
 imp = Imputer(strategy='mean', axis=0)
-from sklearn.linear_model import Ridge, RidgeCV
+from sklearn.linear_model import Ridge, RidgeCV, BayesianRidge
 from sklearn.metrics import mean_squared_error
 from numpy import concatenate
 TrainFiles = {'T':"./data/Temperature_Train_Feature.tsv", 'S':"./data/SunDuration_Train_Feature.tsv", 'P':"./data/Precipitation_Train_Feature.tsv"}
@@ -100,6 +100,9 @@ def getFeature(nPrev, nAfter, aux_temp, aux_sun, aux_prec, files):
     X_tempAux = concatenate(map(lambda i:auxiliary(X_t, i), aux_temp), axis=1)
     X_sunAux = concatenate(map(lambda i:auxiliary(X_s, i), aux_sun), axis=1)
     X_precAux = concatenate(map(lambda i:auxiliary(X_p, i), aux_prec), axis=1)
+
+    #X_Ave = concatenate((n_average(1, X_t), n_average(2, X_t), n_average(3, X_t), n_average(5, X_t)), axis=1)
+
     X_Final = concatenate((X_Ngram, X_tempAux, X_sunAux, X_precAux), axis=1)
     return X_Final
 
@@ -146,11 +149,11 @@ if __name__ == "__main__":
     for i in range(2, 12):
         for j in range(2, 12):
             print "%s,%s-gram" % (i, j)
-            mse = validate(i,j)
+            mse = validate(i,j, [-2, -1, 1, 2], [-1], [-1, -2])
             if mse < MIN:
                 MIN = mse
                 WHICH = (i,j)
     sys.stderr.write("the best is %s (mse:%f)\n" % (WHICH, MIN))
     '''
     model10_3 = validate(10, 3, [-2, -1, 1, 2], [-1], [-1, -2], get_model=True)
-    predict(10, 3, [-2, -1, 1, 2], [-1], [-1, -2], model10_3)
+    #predict(10, 3, [-2, -1, 1, 2], [-1], [-1, -2], model10_3)
