@@ -23,12 +23,13 @@ def getFeature(nPrev, nAfter, aux_temp, aux_sun, aux_prec, files):
     X_t = temp_feature.loc[:, ['place%d' % i for i in range(11)]].values
     X_s = sun_feature.loc[:, ['place%d' % i for i in range(11)]].values
     X_p = prec_feature.loc[:, ['place%d' % i for i in range(11)]].values
-    X_aux = temp_feature.loc[:, ['targetplaceid', 'hour', 'day']].values
+    X_time = temp_feature.loc[:, ['hour', 'day']].values
+    X_target = get_targetX(temp_feature.loc[:, ['targetplaceid']].values, 0)
     X_which = concatenate((auxiliary(X_t), auxiliary(X_s), auxiliary(X_p)), axis=1)
 
     l = location.loc[1:, 1:].values
     l_1800 = np.tile(l, (164, 1))[:-4,:]
-    X_basic = concatenate((X_t, X_aux, X_which, l_1800),axis=1)
+    X_basic = concatenate((X_t, X_target, X_time, X_which, l_1800),axis=1)
 
     #X_Ngram = n_gram(nPrev,nAfter, X_basic, crossYearPt=getCrossYear(temp_train_feature))
     X_Ngram = n_gram(nPrev, nAfter, X_basic)
@@ -37,9 +38,10 @@ def getFeature(nPrev, nAfter, aux_temp, aux_sun, aux_prec, files):
     X_sunAux = concatenate(map(lambda i:auxiliary(X_s, i), aux_sun), axis=1)
     X_precAux = concatenate(map(lambda i:auxiliary(X_p, i), aux_prec), axis=1)
 
-    #X_Ave = concatenate((n_average(1, X_t), n_average(2, X_t), n_average(3, X_t), n_average(5, X_t)), axis=1)
+    #X_dev = concatenate((np.std(X_t, axis=1).reshape(1800, 1)), axis=1)
+    X_Ave = concatenate((n_average(X_t, 2), n_average(X_t, 4)), axis=1)
 
-    X_Final = concatenate((X_Ngram, X_tempAux, X_sunAux, X_precAux), axis=1)
+    X_Final = concatenate((X_Ngram, X_tempAux, X_sunAux, X_precAux, X_Ave), axis=1)
     return X_Final
 
 def validate(nPrev, nAfter, aux_temp, aux_sun, aux_prec, get_model=False):
@@ -75,21 +77,24 @@ def predict(nPrev, nAfter, aux_temp, aux_sun, aux_prec, model):
     X_Final = imp.transform(X_Final)
 
     y_test_pred = model.predict(X_Final)
-    SUBMIT_PATH = 'submission/submission_0705_3.dat'
-    np.savetxt(SUBMIT_PATH, y_test_pred, fmt='%.10f')
+    SUBMIT_PATH = 'submission/submission_0707_2.dat'
+    #np.savetxt(SUBMIT_PATH, y_test_pred, fmt='%.10f')
 
 if __name__ == "__main__":
     '''
     MIN = 1
     WHICH = None
-    for i in range(2, 12):
-        for j in range(2, 12):
+    for i in range(0, 12):
+        for j in range(0, 12):
             print "%s,%s-gram" % (i, j)
-            mse = validate(i,j, [-2, -1, 1, 2], [-1], [-1, -2])
-            if mse < MIN:
-                MIN = mse
-                WHICH = (i,j)
+            try:
+                mse = validate(i,j, [-2, -1, 1, 2], [-1], [-1, -2])
+                if mse < MIN:
+                    MIN = mse
+                    WHICH = (i,j)
+            except:
+                pass
     sys.stderr.write("the best is %s (mse:%f)\n" % (WHICH, MIN))
     '''
-    model10_3 = validate(10, 3, [-2, -1, 1, 2], [-1], [-1, -2], get_model=True)
-    #predict(10, 3, [-2, -1, 1, 2], [-1], [-1, -2], model10_3)
+    model5_3 = validate(5, 3, [-2, -1, 1, 2], [-1], [-1, -2], get_model=True)
+    predict(5, 3, [-2, -1, 1, 2], [-1], [-1, -2], model5_3)
